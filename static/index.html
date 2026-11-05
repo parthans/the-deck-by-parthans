@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Deck">
+<meta name="theme-color" content="#111317">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/app.css">
+<title>Deck</title>
+</head>
+<body>
+
+<!-- PIN screen -->
+<section id="lock" class="lock" hidden>
+  <div class="lock-inner">
+    <h1 class="serif">Deck</h1>
+    <p class="muted">Enter the PIN you set on the Mac</p>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="pinpad" id="pinpad"></div>
+    <p class="lock-error" id="lockError"></p>
+  </div>
+</section>
+
+<div id="app" class="app" hidden>
+
+  <header class="top">
+    <div class="clock">
+      <div class="time serif" id="clockTime">--:--</div>
+      <div class="date" id="clockDate"></div>
+    </div>
+    <div class="top-right">
+      <div class="mini-timer" id="miniTimer" hidden></div>
+      <div class="mac-status">
+        <span class="dot" id="connDot"></span>
+        <span id="macName">Mac</span>
+        <span class="locked-tag" id="lockedTag" hidden>Locked</span>
+        <span class="sep">·</span>
+        <span id="battery">--</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="pages">
+
+    <!-- HOME -->
+    <section class="page" data-page="home">
+      <div class="home-grid">
+        <div class="col-main">
+          <div class="block">
+            <h2 class="label">Apps</h2>
+            <div class="tiles" data-section="apps"></div>
+          </div>
+          <div class="block">
+            <h2 class="label">Sites</h2>
+            <div class="tiles" data-section="sites"></div>
+          </div>
+          <div class="block">
+            <h2 class="label">Workspaces</h2>
+            <div class="tiles wide" data-section="workspaces"></div>
+          </div>
+          <div class="block">
+            <h2 class="label">On a call</h2>
+            <div class="tiles strip" data-section="call"></div>
+          </div>
+        </div>
+
+        <div class="col-side">
+          <div class="card agenda-card">
+            <div class="card-head">
+              <h2 class="serif">Calendar</h2>
+              <div class="head-btns">
+                <button class="ghost small" id="calRefresh">Refresh</button>
+                <button class="ghost small" id="addEventBtn">+ Event</button>
+              </div>
+            </div>
+            <div id="agenda" class="agenda"><p class="muted">Loading...</p></div>
+          </div>
+
+          <div class="card music-card" id="musicCard">
+            <div class="music">
+              <div class="art" id="art"><span class="serif">♪</span></div>
+              <div class="track">
+                <div class="track-name" id="trackName">Nothing playing</div>
+                <div class="track-artist muted" id="trackArtist">Apple Music</div>
+                <div class="bar"><span id="trackBar"></span></div>
+              </div>
+            </div>
+            <div class="music-ctl">
+              <button class="round" data-builtin="music_prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+              <button class="round big" data-builtin="music_playpause" aria-label="Play or pause" id="playBtn"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+              <button class="round" data-builtin="music_next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CAPTURE -->
+    <section class="page" data-page="capture" hidden>
+      <div class="capture-grid">
+        <div class="card">
+          <div class="card-head"><h2 class="serif">Ask Claude</h2></div>
+          <textarea id="claudeText" rows="4" placeholder="Type or dictate here. It goes into a new chat in the Claude app on your Mac."></textarea>
+          <div class="row">
+            <button class="ghost" id="claudePaste">Paste in Claude</button>
+            <button class="gold" id="claudeSend">Paste and send</button>
+          </div>
+        </div>
+
+        <div class="card voice-card">
+          <div class="card-head"><h2 class="serif">Voice note</h2><span class="muted small" id="voiceHint"></span></div>
+          <div class="recorder">
+            <button class="rec" id="recBtn" aria-label="Record"><span></span></button>
+            <div>
+              <div class="rec-time serif" id="recTime">0:00</div>
+              <div class="muted small" id="recState">Tap to record</div>
+            </div>
+          </div>
+          <div class="notes" id="notes"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2 class="serif">Clipboard</h2></div>
+          <textarea id="clipText" rows="3" placeholder="Text here goes to the Mac clipboard. Paste it anywhere with Command V."></textarea>
+          <div class="row">
+            <button class="ghost" id="clipGet">Get from Mac</button>
+            <button class="ghost" id="clipCopyHere">Copy on iPad</button>
+            <button class="gold" id="clipSend">Send to Mac</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2 class="serif">Find on Mac</h2></div>
+          <input id="searchInput" type="search" placeholder="File or folder name" autocomplete="off" autocorrect="off" autocapitalize="off">
+          <div class="results" id="results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTROLS -->
+    <section class="page" data-page="controls" hidden>
+      <div class="controls-grid">
+        <div class="col-main">
+          <div class="block">
+            <h2 class="label">Focus</h2>
+            <div class="tiles wide" data-section="focus"></div>
+          </div>
+          <div class="block">
+            <h2 class="label">Mac</h2>
+            <div class="tiles" data-section="system"></div>
+          </div>
+          <div class="block" id="shortcutsBlock">
+            <h2 class="label">My Shortcuts</h2>
+            <div class="tiles wide" data-section="shortcuts"></div>
+          </div>
+        </div>
+        <div class="col-side">
+          <div class="card timer-card">
+            <div class="card-head"><h2 class="serif">Timer</h2></div>
+            <div class="timer-face serif" id="timerFace">25:00</div>
+            <div class="row presets">
+              <button class="ghost" data-min="15">15</button>
+              <button class="ghost" data-min="25">25</button>
+              <button class="ghost" data-min="50">50</button>
+              <button class="ghost" data-min="90">90</button>
+            </div>
+            <div class="row">
+              <button class="ghost" id="timerReset">Reset</button>
+              <button class="gold" id="timerGo">Start</button>
+            </div>
+          </div>
+          <div class="card">
+            <p class="muted small">Edit tiles in <code>config.json</code> on the Mac. Changes appear when you reload this panel.</p>
+            <div class="row">
+              <button class="ghost" id="reloadBtn">Reload panel</button>
+              <button class="ghost" id="logoutBtn">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="home">Home</button>
+    <button class="tab" data-tab="capture">Capture</button>
+    <button class="tab" data-tab="controls">Controls</button>
+  </nav>
+</div>
+
+<!-- Add event sheet -->
+<div class="sheet" id="eventSheet" hidden>
+  <form class="sheet-inner card" id="eventForm">
+    <h2 class="serif">New event</h2>
+    <input id="evTitle" placeholder="Title" required autocomplete="off">
+    <div class="row">
+      <input id="evDate" type="date" required>
+      <input id="evTime" type="time" required>
+    </div>
+    <div class="row seg" id="evDur">
+      <button type="button" data-d="15">15m</button>
+      <button type="button" data-d="30" class="on">30m</button>
+      <button type="button" data-d="45">45m</button>
+      <button type="button" data-d="60">1h</button>
+      <button type="button" data-d="90">1.5h</button>
+    </div>
+    <div class="row">
+      <button type="button" class="ghost" id="evCancel">Cancel</button>
+      <button type="submit" class="gold">Add to calendar</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

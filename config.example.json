@@ -1,0 +1,75 @@
+{
+  "name": "Deck",
+  "pin": "",
+  "port": 8443,
+  "setup_port": 8080,
+
+  "calendar": {
+    "source": "all",
+    "match": [],
+    "days": 2,
+    "only_calendars": [],
+    "add_to_calendar": ""
+  },
+
+  "voice": {
+    "folder": "~/Voice Notes",
+    "whisper_model": "~/.deck/models/ggml-base.en.bin",
+    "language": "en"
+  },
+
+  "claude": {
+    "app": "Claude",
+    "new_chat_keys": "cmd+n"
+  },
+
+  "apps": [
+    { "id": "safari",    "label": "Safari",   "do": { "open_app": "Safari" } },
+    { "id": "mail",      "label": "Mail",     "do": { "open_app": "Mail" } },
+    { "id": "calendar",  "label": "Calendar", "do": { "open_app": "Calendar" } },
+    { "id": "notes",     "label": "Notes",    "do": { "open_app": "Notes" } },
+    { "id": "music",     "label": "Music",    "do": { "open_app": "Music" } },
+    { "id": "messages",  "label": "Messages", "do": { "open_app": "Messages" } },
+    { "id": "finder",    "label": "Finder",   "do": { "open_app": "Finder" } },
+    { "id": "spotlight", "label": "Search",   "do": { "builtin": "spotlight" } }
+  ],
+
+  "sites": [
+    { "id": "github",   "label": "GitHub",   "do": { "open_url": "https://github.com", "browser": "Safari" } },
+    { "id": "linkedin", "label": "LinkedIn", "do": { "open_url": "https://www.linkedin.com/feed/", "browser": "Safari" } },
+    { "id": "youtube",  "label": "YouTube",  "do": { "open_url": "https://www.youtube.com", "browser": "Safari" } },
+    { "id": "wikipedia","label": "Wikipedia","do": { "open_url": "https://en.wikipedia.org", "browser": "Safari" } }
+  ],
+
+  "workspaces": [
+    { "id": "ws-morning", "label": "Morning",  "do": { "steps": ["mail", "calendar", "notes"] } },
+    { "id": "ws-write",   "label": "Write",    "do": { "steps": ["notes", "music", "focus-deep"] } },
+    { "id": "ws-call",    "label": "On a call","do": { "steps": ["calendar", "notes", "focus-work"] } }
+  ],
+
+  "call": [
+    { "id": "call-mic",    "label": "Mic",    "do": { "builtin": "mic_toggle" } },
+    { "id": "call-camera", "label": "Camera", "do": { "keys": "cmd+shift+o", "app": "Microsoft Teams" } },
+    { "id": "call-hand",   "label": "Hand",   "do": { "keys": "cmd+shift+k", "app": "Microsoft Teams" } },
+    { "id": "call-leave",  "label": "Leave",  "do": { "keys": "cmd+shift+h", "app": "Microsoft Teams" } }
+  ],
+
+  "focus": [
+    { "id": "focus-work", "label": "Work",      "do": { "shortcut": "Deck Focus Work" } },
+    { "id": "focus-deep", "label": "Deep work", "do": { "shortcut": "Deck Focus Deep" } },
+    { "id": "focus-off",  "label": "Focus off", "do": { "shortcut": "Deck Focus Off" } }
+  ],
+
+  "system": [
+    { "id": "sys-lock",    "label": "Lock",        "do": { "builtin": "lock" } },
+    { "id": "sys-display", "label": "Screen off",  "do": { "builtin": "display_sleep" } },
+    { "id": "sys-shot",    "label": "Screenshot",  "do": { "builtin": "screenshot" } },
+    { "id": "sys-mission", "label": "All windows", "do": { "builtin": "mission_control" } },
+    { "id": "sys-vdown",   "label": "Volume down", "do": { "builtin": "vol_down" } },
+    { "id": "sys-vup",     "label": "Volume up",   "do": { "builtin": "vol_up" } },
+    { "id": "sys-mute",    "label": "Mute",        "do": { "builtin": "mute_toggle" } },
+    { "id": "sys-mic",     "label": "Mic",         "do": { "builtin": "mic_toggle" } }
+  ],
+
+  "shortcuts": []
+}

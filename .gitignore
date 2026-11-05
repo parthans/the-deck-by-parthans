@@ -1,0 +1,9 @@
+# Your own settings, keys and data stay on your Mac
+config.json
+certs/
+bin/
+icons/
+deck.log
+*.wav
+.DS_Store
+__pycache__/
