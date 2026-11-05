@@ -1,4 +1,4 @@
-<a href="https://parthans.com/blog/"><img src="docs/banner.png" alt="Deck. Your old iPad, now a control panel for your Mac. Free, runs in Safari, no app to install, one settings file." width="100%"></a>
+<a href="https://parthans.com/blog/2026/11/05/old-ipad-control-panel-for-my-mac/"><img src="docs/banner.png" alt="Deck. Your old iPad, now a control panel for your Mac. Free, runs in Safari, no app to install, one settings file." width="100%"></a>
 
 **Turn any iPad into a wireless button panel for your Mac.** Open apps and sites, see your calendar and join meetings, control music, send prompts to Claude and record voice notes, from a web page on the iPad. Free, no app to install, every button set in one file.
 
@@ -190,7 +190,7 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## The story
 
-Partha Srinivasan built Deck in an afternoon to give an old iPad a second life beside his MacBook, then spent the evening fixing what only daily use shows up. He wrote it up on [parthans.com](https://parthans.com/blog/). Deck was built with [Claude](https://claude.ai), Anthropic's AI model: Partha set the requirements, made the calls and tested it, and Claude wrote the code.
+Partha Srinivasan built Deck in an afternoon to give an old iPad a second life beside his MacBook, then spent the evening fixing what only daily use shows up. He wrote up the build, including what broke, in [My old iPad is now the control panel for my Mac](https://parthans.com/blog/2026/11/05/old-ipad-control-panel-for-my-mac/). Deck was built with [Claude](https://claude.ai), Anthropic's AI model: Partha set the requirements, made the calls and tested it, and Claude wrote the code.
 
 ## Contributing
 
