@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -674,7 +674,10 @@ def agenda(force=False):
             data = {"error": "Calendar helper returned something unexpected"}
     if "events" in data:
         _join_links.clear()
+        data = dict(data)
+        data["events"] = [dict(ev) for ev in data["events"] if not ev.get("deckTask")]
         for ev in data["events"]:
+            ev.pop("eid", None)
             link = ev.pop("joinUrl", None)
             if link:
                 _join_links[ev["id"]] = link
@@ -684,17 +687,19 @@ def agenda(force=False):
 
 
 def demo_agenda():
-    now = datetime.now().replace(minute=0, second=0, microsecond=0)
+    day = now_local().replace(second=0, microsecond=0)
     def iso(h, m=0):
-        return now.replace(hour=h % 24, minute=m).isoformat()
-    h = now.hour
+        return day.replace(hour=h, minute=m).isoformat()
     return {"events": [
-        {"id": "d1", "title": "Project kickoff", "start": iso(h + 1), "end": iso(h + 1, 45),
+        {"id": "d1", "title": "Discovery call", "start": iso(11, 0), "end": iso(11, 45),
          "allDay": False, "calendar": "Calendar", "location": "Microsoft Teams Meeting",
          "joinUrl": "https://teams.microsoft.com/l/meetup-join/demo"},
-        {"id": "d2", "title": "Write the weekly update", "start": iso(h + 3), "end": iso(h + 4),
+        {"id": "d2", "title": "Weekly review", "start": iso(16, 0), "end": iso(16, 30),
          "allDay": False, "calendar": "Calendar", "location": ""},
-    ]}
+    ] + [dict(b) for b in _demo_blocks]}
+
+
+_demo_blocks = []
 
 
 def add_event(title, start, end):
@@ -713,6 +718,447 @@ def add_event(title, start, end):
         raise ActionError(err or "Could not add the event")
     _agenda_cache["at"] = 0
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- today's plan
+#
+# A scheduled Claude task writes today's 3 to 5 tasks to a private GitHub repository
+# as JSON. Deck shows them as "Proposed". Nothing reaches the calendar until you
+# tap Approve: then Deck puts each task in a free block on his calendar, marked
+# "Deck task <id>" in the notes so Deck can find, tick off or remove only its own.
+
+PLAN_STATE = STATE / "plan-state.json"
+_plan_cache = {"at": 0.0, "plan": None, "error": None}
+_plan_lock = threading.Lock()
+PLAN_DEFAULTS = {
+    "repo": "", "path": "_plan/{date}.json", "branch": "main", "token": "",
+    "ready_by": "07:00", "day_start": "09:30", "day_end": "18:00",
+    "lunch": ["13:00", "14:00"], "block_minutes": 45, "buffer_minutes": 10,
+    "gap_minutes": 15, "title_prefix": "Focus: ", "done_prefix": "Done: ",
+}
+
+
+def now_local():
+    fake = os.environ.get("DECK_TEST_NOW") if DRY_RUN else None
+    return datetime.fromisoformat(fake) if fake else datetime.now()
+
+
+def plan_cfg():
+    cfg = dict(PLAN_DEFAULTS)
+    cfg.update(CONFIG.get().get("plan", {}) or {})
+    return cfg
+
+
+def hm(text, day):
+    h, m = (int(x) for x in str(text).split(":"))
+    return day.replace(hour=h, minute=m, second=0, microsecond=0)
+
+
+def demo_plan():
+    today = now_local().date().isoformat()
+    return {"date": today, "note": "Two follow-ups first, while the morning is fresh.", "tasks": [
+        {"id": "t1", "title": "Reply to the training lead who asked for a proposal", "why": "Replied on Tuesday, waiting two days", "kind": "signature", "source": "CRM"},
+        {"id": "t2", "title": "Send the workshop outline to the client", "why": "Promised in Monday's call", "kind": "signature", "source": "Email"},
+        {"id": "t3", "title": "Outline the first case study", "why": "Case studies page has none yet", "kind": "case-study", "source": "Website"},
+        {"id": "t4", "title": "Publish the draft on AI briefs", "why": "Ready in the CMS since Monday", "kind": "content", "source": "CMS"},
+    ]}
+
+
+def fetch_plan(force=False):
+    """Today's plan from GitHub, cached for 10 minutes. Returns (plan or None, error or None)."""
+    with _plan_lock:
+        fresh = time.time() - _plan_cache["at"] < 600
+        same_day = (_plan_cache["plan"] or {}).get("date") == now_local().date().isoformat()
+        if not force and fresh and (same_day or _plan_cache["plan"] is None and _plan_cache["error"] is None and time.time() - _plan_cache["at"] < 300):
+            return _plan_cache["plan"], _plan_cache["error"]
+        cfg = plan_cfg()
+        plan, error = _plan_cache["plan"], None
+        if DRY_RUN:
+            demo = os.environ.get("DECK_DEMO_PLAN")
+            plan = json.loads(Path(demo).read_text()) if demo else demo_plan()
+        elif not cfg["repo"] or not cfg["token"]:
+            plan, error = None, "not-configured"
+        else:
+            import urllib.request, urllib.error
+            path = cfg["path"].replace("{date}", now_local().date().isoformat())
+            url = (f"https://api.github.com/repos/{cfg['repo']}/contents/"
+                   f"{urllib.parse.quote(path)}?ref={urllib.parse.quote(cfg['branch'])}")
+            req = urllib.request.Request(url, headers={
+                "Authorization": f"Bearer {cfg['token']}",
+                "Accept": "application/vnd.github.raw+json",
+                "User-Agent": "Deck"})
+            try:
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    plan = json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    plan = None
+                else:
+                    error = f"GitHub answered {e.code}. Check the plan token in config.json."
+            except Exception as e:
+                error = "Could not reach GitHub for today's list"
+                log("plan fetch failed", repr(e)[:160])
+        _plan_cache.update(at=time.time(), plan=plan, error=error)
+        return plan, error
+
+
+def load_state(today):
+    try:
+        st = json.loads(PLAN_STATE.read_text())
+        if st.get("date") == today:
+            return st
+    except (OSError, ValueError):
+        pass
+    return {"date": today, "status": "proposed", "excluded": [], "blocks": {}, "done": [], "unplaced": []}
+
+
+def save_state(st):
+    PLAN_STATE.write_text(json.dumps(st, indent=1))
+
+
+def today_events():
+    """Every timed event today on every calendar, with ids and Deck markers."""
+    if DRY_RUN:
+        return [e for e in demo_agenda()["events"] if not e.get("allDay")]
+    if not AGENDA_BIN.exists():
+        raise ActionError("Calendar helper not built yet. Run setup.sh on the Mac.")
+    code, out, err = run([str(AGENDA_BIN), "list", "--days", "1", "--source", "all"], timeout=20)
+    if code != 0:
+        raise ActionError(err or "Could not read the calendar")
+    return [e for e in json.loads(out).get("events", []) if not e.get("allDay")]
+
+
+def parse_iso(text):
+    d = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    return d.astimezone().replace(tzinfo=None) if d.tzinfo else d
+
+
+def find_slots(count, events, now=None):
+    """Earliest free blocks today, inside working hours, clear of meetings, lunch and each other."""
+    cfg = plan_cfg()
+    now = now or now_local()
+    day = now.replace(second=0, microsecond=0)
+    block = timedelta(minutes=int(cfg["block_minutes"]))
+    pad = timedelta(minutes=int(cfg["buffer_minutes"]))
+    gap = timedelta(minutes=int(cfg["gap_minutes"]))
+    start, end = hm(cfg["day_start"], day), hm(cfg["day_end"], day)
+    earliest = now + timedelta(minutes=5)
+    earliest = earliest + timedelta(minutes=(15 - earliest.minute % 15) % 15)
+    t = max(start, earliest.replace(second=0, microsecond=0))
+    busy = []
+    for ev in events:
+        if ev.get("deckTask"):
+            busy.append((parse_iso(ev["start"]) - gap, parse_iso(ev["end"]) + gap))
+        else:
+            busy.append((parse_iso(ev["start"]) - pad, parse_iso(ev["end"]) + pad))
+    if cfg.get("lunch"):
+        busy.append((hm(cfg["lunch"][0], day), hm(cfg["lunch"][1], day)))
+    slots = []
+    while len(slots) < count and t + block <= end:
+        clash = next((b for b in busy if t < b[1] and t + block > b[0]), None)
+        if clash:
+            t = clash[1]
+            t = t + timedelta(minutes=(5 - t.minute % 5) % 5)
+            continue
+        slots.append((t, t + block))
+        busy.append((t - gap, t + block + gap))
+        t = t + block + gap
+    return slots
+
+
+def plan_view(force=False):
+    today = now_local().date().isoformat()
+    plan, error = fetch_plan(force)
+    cfg = plan_cfg()
+    if error == "not-configured":
+        return {"status": "not-configured"}
+    if not plan or plan.get("date") != today:
+        before = now_local() < hm(cfg["ready_by"], now_local())
+        return {"status": "waiting" if before else "none", "readyBy": cfg["ready_by"], "error": error}
+    st = load_state(today)
+    tasks = []
+    for t in plan.get("tasks", [])[:5]:
+        tid = str(t.get("id", ""))
+        blk = st["blocks"].get(tid)
+        tasks.append({
+            "id": tid, "title": str(t.get("title", ""))[:140], "why": str(t.get("why", ""))[:160],
+            "kind": t.get("kind", ""), "source": t.get("source", ""),
+            "included": tid not in st["excluded"], "done": tid in st["done"],
+            "start": blk["start"] if blk else None, "end": blk["end"] if blk else None,
+            "unplaced": tid in st.get("unplaced", []),
+        })
+    return {"status": st["status"], "date": today, "note": str(plan.get("note", ""))[:200],
+            "tasks": tasks, "blockMinutes": int(cfg["block_minutes"]), "error": error}
+
+
+def plan_and_state():
+    today = now_local().date().isoformat()
+    plan, _ = fetch_plan()
+    if not plan or plan.get("date") != today:
+        raise ActionError("There is no list for today")
+    return plan, load_state(today)
+
+
+def plan_toggle(tid):
+    plan, st = plan_and_state()
+    if st["status"] != "proposed":
+        raise ActionError("The list is already approved" if st["status"] == "approved" else "You set today aside. Tap Show list again first")
+    if tid in st["excluded"]:
+        st["excluded"].remove(tid)
+    else:
+        st["excluded"].append(tid)
+    save_state(st)
+
+
+def marker(today, tid):
+    return f"{today}-{re.sub(r'[^A-Za-z0-9_-]', '', tid)}"
+
+
+def plan_approve():
+    plan, st = plan_and_state()
+    if st["status"] == "approved":
+        return {"toast": "Already on your calendar"}
+    cfg = plan_cfg()
+    chosen = [t for t in plan.get("tasks", [])[:5] if str(t.get("id")) not in st["excluded"]]
+    if not chosen:
+        raise ActionError("Keep at least one task, or tap Not today")
+    slots = find_slots(len(chosen), today_events())
+    cal_cfg = CONFIG.get().get("calendar", {})
+    st["blocks"], st["unplaced"] = {}, []
+    for task, slot in zip(chosen, slots + [None] * (len(chosen) - len(slots))):
+        tid = str(task.get("id"))
+        if slot is None:
+            st["unplaced"].append(tid)
+            continue
+        s, e = slot
+        title = cfg["title_prefix"] + str(task.get("title", ""))[:120]
+        notes = f"Deck task {marker(st['date'], tid)}\n{task.get('why', '')}\nPlaced by Deck after you approved today's list."
+        if DRY_RUN:
+            _demo_blocks.append({"id": "b" + tid, "title": title, "start": s.isoformat(), "end": e.isoformat(),
+                                 "allDay": False, "calendar": "Calendar", "location": "",
+                                 "deckTask": marker(st["date"], tid), "eid": "demo-" + tid})
+        else:
+            cmd = [str(AGENDA_BIN), "add", "--title", title, "--start", s.strftime("%Y-%m-%dT%H:%M:%S"),
+                   "--end", e.strftime("%Y-%m-%dT%H:%M:%S"), "--notes", notes,
+                   "--source", cal_cfg.get("source", "all"), "--match", ",".join(cal_cfg.get("match", []))]
+            if cal_cfg.get("add_to_calendar"):
+                cmd += ["--calendar", cal_cfg["add_to_calendar"]]
+            code, out, err = run(cmd, timeout=20)
+            if code != 0:
+                save_state(st)
+                raise ActionError(err or "Could not add a block to the calendar")
+        st["blocks"][tid] = {"start": s.isoformat(), "end": e.isoformat(), "title": title}
+    st["status"] = "approved"
+    save_state(st)
+    _agenda_cache["at"] = 0
+    placed = len(st["blocks"])
+    msg = f"{placed} block{'s' if placed != 1 else ''} on your calendar"
+    if st["unplaced"]:
+        msg += f". No free {cfg['block_minutes']} minutes left for {len(st['unplaced'])}"
+    return {"toast": msg}
+
+
+def find_block_event(today, tid):
+    want = marker(today, tid)
+    return next((e for e in today_events() if e.get("deckTask") == want), None)
+
+
+def plan_done(tid, done):
+    plan, st = plan_and_state()
+    if done and tid not in st["done"]:
+        st["done"].append(tid)
+    if not done and tid in st["done"]:
+        st["done"].remove(tid)
+    blk = st["blocks"].get(tid)
+    if blk:
+        cfg = plan_cfg()
+        task = next((t for t in plan.get("tasks", []) if str(t.get("id")) == tid), {})
+        title = (cfg["done_prefix"] if done else cfg["title_prefix"]) + str(task.get("title", ""))[:120]
+        if DRY_RUN:
+            for b in _demo_blocks:
+                if b["deckTask"] == marker(st["date"], tid):
+                    b["title"] = title
+        else:
+            ev = find_block_event(st["date"], tid)
+            if ev:
+                code, _, err = run([str(AGENDA_BIN), "rename", "--eid", ev["eid"], "--title", title], timeout=20)
+                if code != 0:
+                    log("rename failed", err[:160])
+    save_state(st)
+    left = sum(1 for t in plan.get("tasks", [])[:5] if str(t.get("id")) not in st["excluded"] and str(t.get("id")) not in st["done"])
+    return {"toast": "All done for today" if done and left == 0 else ("Done" if done else "Back on the list")}
+
+
+def plan_dismiss():
+    plan, st = plan_and_state()
+    st["status"] = "dismissed"
+    save_state(st)
+    return {"toast": "Nothing blocked today"}
+
+
+def plan_reopen():
+    plan, st = plan_and_state()
+    if st["status"] == "dismissed":
+        st["status"] = "proposed"
+        save_state(st)
+    return {"toast": "List is back"}
+
+
+def plan_reset():
+    """Take Deck's blocks off the calendar and show the list as proposed again."""
+    plan, st = plan_and_state()
+    if not DRY_RUN:
+        for tid in list(st["blocks"]):
+            ev = find_block_event(st["date"], tid)
+            if ev:
+                run([str(AGENDA_BIN), "remove", "--eid", ev["eid"]], timeout=20)
+    else:
+        _demo_blocks.clear()
+    st.update(status="proposed", blocks={}, unplaced=[])
+    save_state(st)
+    _agenda_cache["at"] = 0
+    return {"toast": "Blocks removed. Change the list and approve again"}
+
+
+# ---------------------------------------------------------------- morning roundup
+#
+# A daily reading roundup (_roundup/YYYY-MM-DD.md in a GitHub repository) that a
+# scheduled job writes each morning. See docs/DAILY.md for the format.
+# Deck only reads it. Links open by item id, so the iPad can only open links that
+# are in today's roundup.
+
+ROUNDUP_DEFAULTS = {"repo": "", "path": "_roundup/{date}.md", "branch": "main", "token": ""}
+_roundup_cache = {"at": 0.0, "data": None}
+_roundup_links = {}
+
+
+def roundup_cfg():
+    cfg = dict(ROUNDUP_DEFAULTS)
+    cfg.update(CONFIG.get().get("roundup", {}) or {})
+    if not cfg["token"]:
+        cfg["token"] = plan_cfg().get("token", "")
+    return cfg
+
+
+def github_text(repo, path, branch, token):
+    """A file's text from GitHub, or None if it does not exist."""
+    import urllib.request, urllib.error
+    url = f"https://api.github.com/repos/{repo}/contents/{urllib.parse.quote(path)}?ref={urllib.parse.quote(branch)}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": "Deck",
+                                               "Accept": "application/vnd.github.raw+json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise ActionError(f"GitHub answered {e.code}. Check the token can read {repo}.")
+
+
+SOURCE_RE = re.compile(r"^Source:\s*\[([^\]]+)\]\((https?://[^\s)]+)\)\s*,?\s*(.*)$")
+
+
+def parse_roundup(text):
+    body = text.lstrip("﻿")
+    meta = {}
+    m = re.match(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n?", body)
+    if m:
+        body = body[m.end():]
+        for line in m.group(1).splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                meta[k.strip()] = v.strip()
+    sections, intro, current, item = [], [], None, None
+
+    def close_item():
+        nonlocal item
+        if item and current is not None:
+            item["summary"] = "\n\n".join(p.strip() for p in "\n".join(item.pop("lines")).split("\n\n") if p.strip())
+            current["items"].append(item)
+        item = None
+
+    for line in body.splitlines():
+        if line.startswith("## "):
+            close_item()
+            current = {"name": line[3:].strip(), "items": []}
+            sections.append(current)
+        elif line.startswith("### "):
+            close_item()
+            if current is None:
+                current = {"name": "Today", "items": []}
+                sections.append(current)
+            item = {"title": line[4:].strip(), "lines": []}
+        elif line.strip() == "---":
+            close_item()
+        elif item is not None:
+            src = SOURCE_RE.match(line.strip())
+            if src:
+                item["linkTitle"], item["url"] = src.group(1), src.group(2)
+                rest = [x.strip() for x in src.group(3).split(",") if x.strip()]
+                item["publisher"] = rest[0] if rest else ""
+                item["kind"] = rest[1] if len(rest) > 1 else ""
+                item["when"] = ", ".join(rest[2:]) if len(rest) > 2 else ""
+            elif line.strip().startswith("Post idea:"):
+                item["idea"] = line.strip()[len("Post idea:"):].strip()
+            else:
+                item["lines"].append(line)
+        elif current is None and line.strip():
+            intro.append(line.strip())
+    close_item()
+    return {"title": meta.get("title", "Morning roundup"), "date": meta.get("date", ""),
+            "intro": " ".join(intro), "sections": [x for x in sections if x["items"]]}
+
+
+def roundup(force=False):
+    if not force and _roundup_cache["data"] and time.time() - _roundup_cache["at"] < 900:
+        return _roundup_cache["data"]
+    cfg = roundup_cfg()
+    today = now_local().date()
+    data = None
+    if DRY_RUN:
+        demo = os.environ.get("DECK_DEMO_ROUNDUP")
+        data = parse_roundup(Path(demo).read_text()) if demo else {"status": "none"}
+        if demo:
+            data.update(status="ok", day="today")
+    elif not cfg["repo"] or not cfg["token"]:
+        data = {"status": "not-configured"}
+    else:
+        for offset, label in ((0, "today"), (1, "yesterday")):
+            day = (today - timedelta(days=offset)).isoformat()
+            try:
+                text = github_text(cfg["repo"], cfg["path"].replace("{date}", day), cfg["branch"], cfg["token"])
+            except ActionError as e:
+                data = {"status": "error", "error": str(e)}
+                break
+            except Exception as e:
+                log("roundup fetch failed", repr(e)[:160])
+                data = {"status": "error", "error": "Could not reach GitHub for the roundup"}
+                break
+            if text:
+                data = parse_roundup(text)
+                data.update(status="ok", day=label)
+                break
+        if data is None:
+            data = {"status": "none"}
+    if data.get("status") == "ok":
+        _roundup_links.clear()
+        for si, sec in enumerate(data["sections"]):
+            for ii, it in enumerate(sec["items"]):
+                it["id"] = f"r{si}-{ii}"
+                if it.get("url"):
+                    _roundup_links[it["id"]] = it["url"]
+                    it["hasLink"] = True
+    _roundup_cache.update(at=time.time(), data=data)
+    return data
+
+
+def open_roundup_link(rid):
+    url = _roundup_links.get(rid)
+    if not url:
+        raise ActionError("That link is no longer in the roundup. Refresh the Read tab.")
+    needs_unlock()
+    open_url(url, "Safari")
+    return {"toast": "Opened on your Mac"}
 
 
 # ---------------------------------------------------------------- voice notes
@@ -990,7 +1436,8 @@ def public_config():
             "icon": bool(t.get("icon") or "open_app" in t["do"] or tile_url(t["do"])),
             "iv": str(int(custom_icon_file(t).stat().st_mtime)) if custom_icon_file(t) else "",
         } for t in cfg.get(s, [])]
-    return {"name": cfg.get("name", "Deck"), "mac": mac_name(), "sections": sections}
+    return {"name": cfg.get("name", "Deck"), "owner": str(cfg.get("owner", ""))[:40],
+            "mac": mac_name(), "sections": sections}
 
 
 class TLSThreadingServer(ThreadingHTTPServer):
@@ -1091,6 +1538,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(agenda(force=q.get("force") == ["1"]))
             if path == "/api/voice":
                 return self.send_json(list_voice())
+            if path == "/api/roundup":
+                return self.send_json(roundup(force=q.get("force") == ["1"]))
+            if path == "/api/plan":
+                return self.send_json(plan_view(force=q.get("force") == ["1"]))
             if path == "/api/clipboard":
                 return self.send_json({"text": pbpaste()})
             if path == "/api/search":
@@ -1180,6 +1631,26 @@ class Handler(BaseHTTPRequestHandler):
                     raise ActionError("Give the event a title")
                 datetime.fromisoformat(start), datetime.fromisoformat(end)
                 return self.send_json(add_event(title, start, end))
+            if path == "/api/roundup/open":
+                return self.send_json(open_roundup_link(str(body.get("id", ""))))
+            if path == "/api/plan/toggle":
+                plan_toggle(str(body.get("id", "")))
+                return self.send_json(plan_view())
+            if path == "/api/plan/approve":
+                r = plan_approve()
+                return self.send_json(dict(plan_view(), toast=r["toast"]))
+            if path == "/api/plan/done":
+                r = plan_done(str(body.get("id", "")), bool(body.get("done")))
+                return self.send_json(dict(plan_view(), toast=r["toast"]))
+            if path == "/api/plan/dismiss":
+                r = plan_dismiss()
+                return self.send_json(dict(plan_view(), toast=r["toast"]))
+            if path == "/api/plan/reopen":
+                r = plan_reopen()
+                return self.send_json(dict(plan_view(), toast=r["toast"]))
+            if path == "/api/plan/reset":
+                r = plan_reset()
+                return self.send_json(dict(plan_view(), toast=r["toast"]))
             if path == "/api/logout":
                 TOKENS.discard(self.headers.get("X-Deck-Token", ""))
                 save_tokens()

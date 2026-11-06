@@ -1,6 +1,6 @@
 <a href="https://parthans.com/blog/2026/11/05/old-ipad-control-panel-for-my-mac/"><img src="docs/banner.png" alt="Deck. Your old iPad, now a control panel for your Mac. Free, runs in Safari, no app to install, one settings file." width="100%"></a>
 
-**Turn any iPad into a wireless button panel for your Mac.** Open apps and sites, see your calendar and join meetings, control music, send prompts to Claude and record voice notes, from a web page on the iPad. Free, no app to install, every button set in one file.
+**Turn any iPad into a wireless button panel for your Mac.** Open apps and sites, see your calendar and join meetings, control music, send prompts to Claude and record voice notes, from a web page on the iPad. It can also show a short focus list for the day that blocks time on your calendar when you say so, and a daily reading roundup. Free, no app to install, every button set in one file.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-5B9DFF?style=flat&labelColor=111317)](LICENSE)
 [![macOS](https://img.shields.io/badge/runs%20on-macOS-5B9DFF?style=flat&labelColor=111317&logo=apple&logoColor=white)](#what-you-need)
@@ -18,6 +18,7 @@
 | To set it up in 15 minutes | [Quick start](#quick-start) |
 | To change the buttons | [Settings](#settings) |
 | Your Outlook or Microsoft 365 calendar on it | [Calendar](#calendar) |
+| A daily focus list and reading roundup | [docs/DAILY.md](docs/DAILY.md) |
 | To know what it can and cannot do on your Mac | [How it stays safe](#how-it-stays-safe) |
 | To fix "can't open a secure connection" | [Troubleshooting](#troubleshooting) |
 
@@ -57,14 +58,20 @@ No git? Download the ZIP from the green **Code** button, unzip it into your home
 
 | Page | What is on it |
 |---|---|
-| **Home** | Apps (tap to open; hold, then tap again, to quit), sites (an open tab is reused), workspaces that open several apps and sites at once, call controls, today's calendar with a Join button, Apple Music |
+| **Home** | Workspaces that open several apps and sites at once, today's calendar with a Join button, today's focus list, Apple Music with call controls under it, then your apps (tap to open; hold, then tap again, to quit) and sites (an open tab is reused) |
+| **Focus list** | 3 to 5 tasks for the day, written each morning by a job of your choice. They arrive as *Proposed*; tap **Block** and each gets a free 45-minute slot on your calendar. Tick a task and its block is renamed `Done:` |
+| **Read** | A daily roundup of articles, posts and podcasts by section, with a summary of each, so you only click through when you want more |
 | **Capture** | Ask Claude, voice notes with transcription, clipboard both ways between iPad and Mac, find files on the Mac by name |
 | **Controls** | Focus modes, lock, screen off, screenshot, volume, mic mute, your own Shortcuts, a timer |
 | **Always** | A PIN screen, a "Locked" label when the Mac is locked, and a message instead of an action when it is |
 
 <table>
 <tr>
-<td width="50%"><a href="docs/home.png"><img src="docs/home.png" alt="Home page: app and site buttons, workspaces, call controls, today's calendar with a Join button and an Apple Music player"></a><br><em>Home. On your Mac, app buttons show each app's own icon.</em></td>
+<td width="50%"><a href="docs/home-proposed.png"><img src="docs/home-proposed.png" alt="Home page with workspaces at the top, today's calendar and a proposed focus list of three tasks with a Block button, Apple Music with call controls, and app and site buttons"></a><br><em>Home in the morning. The focus list waits for your Block.</em></td>
+<td width="50%"><a href="docs/home.png"><img src="docs/home.png" alt="Home page after blocking: each task shows its 45-minute time slot, the first is ticked done"></a><br><em>After Block. Each task has its slot on the calendar.</em></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/read.png"><img src="docs/read.png" alt="Read page: a morning roundup with section filters and summaries of articles, each with its source and date"></a><br><em>Read. The day's roundup, by section.</em></td>
 <td width="50%"><a href="docs/capture.png"><img src="docs/capture.png" alt="Capture page: an Ask Claude box, a voice note recorder with a transcribed note, a clipboard box and file search"></a><br><em>Capture. Prompts go to Claude, notes are transcribed on the Mac.</em></td>
 </tr>
 <tr>
@@ -102,6 +109,8 @@ Each button has an `id`, a `label` and a `do`:
 
 Buttons go into sections: `apps`, `sites`, `workspaces`, `call`, `focus`, `system` and `shortcuts`. An empty section is hidden.
 
+Set `"owner": "Your name"` to see a greeting at the top of Home.
+
 A button can have its own picture: `"icon": "icons/my-site.png"`. Put the file in an `icons` folder inside `deck`. Use this for sites behind a login, whose icons Deck cannot fetch.
 
 ### Calendar
@@ -118,6 +127,10 @@ Deck reads the calendars your Mac already syncs.
 | `"add_to_calendar": "Calendar"` | Where **+ Event** puts new events |
 
 For Microsoft 365: System Settings, Internet Accounts, Add Account, **Microsoft Exchange** (there is no separate Microsoft 365 option), sign in, and switch on Calendars. Calendar settings take effect on the next refresh. If you change `tools/agenda.swift`, rebuild the helper by running `./setup.sh` again.
+
+### Focus list and reading roundup
+
+Both are optional and off until you set them up. Deck reads them each morning from a private GitHub repository with a read-only token, so whatever writes them (a scheduled Claude task, a script, or you) can run anywhere. The file formats, the slot settings (working hours, lunch, gaps around meetings) and an example prompt are in [docs/DAILY.md](docs/DAILY.md).
 
 ### Focus modes
 
@@ -156,6 +169,7 @@ A page that can open apps and press keys on your Mac needs limits. These are Dec
 - **The connection is encrypted** with a certificate authority made on your Mac during setup. Its private key never leaves the `certs` folder.
 - **Local only.** Deck listens on your network. Do not forward its port on your router or put it on the internet.
 - **A locked Mac stays locked.** If the Mac is locked, buttons that open or type things are refused, and the Mac's screen wakes so you can unlock it. Music, volume, mute and lock still work.
+- **Your calendar changes only when you tap Block.** A proposed list never touches it. Deck marks each block it adds and only ever renames or removes events with that mark. Links on the Read page open on the Mac only if they are in today's roundup.
 - **A stuck connection cannot freeze it.** Any connection that does not finish within 10 seconds is dropped.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).

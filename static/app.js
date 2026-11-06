@@ -167,7 +167,7 @@
     $$("[data-section]").forEach((box) => {
       const section = box.dataset.section;
       const tiles = config.sections[section] || [];
-      const compact = box.classList.contains("wide") || box.classList.contains("strip");
+      const compact = box.classList.contains("wide") || box.classList.contains("strip") || box.classList.contains("pills");
       box.innerHTML = "";
       tiles.forEach((tile) => box.appendChild(makeTile(tile, compact, section)));
       const block = box.closest(".block");
@@ -283,6 +283,10 @@
     const now = new Date();
     $("#clockTime").textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     $("#clockDate").textContent = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    const who = config && config.owner ? `, ${config.owner}` : "";
+    const h = now.getHours();
+    const part = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    $("#greet").textContent = config && config.owner ? `${part}${who}` : "";
   }
 
   let lockPoll = null;
@@ -323,8 +327,11 @@
         return;
       }
       const events = data.events || [];
+      const todayCount = events.filter((ev) => !ev.allDay && dayLabel(new Date(ev.start)) === "Today" && new Date(ev.end) > new Date()).length;
+      meetingsLeft = todayCount;
+      updateTodaySub();
       if (!events.length) {
-        box.innerHTML = `<p class="muted">Nothing on the calendar.</p>`;
+        box.innerHTML = `<p class="empty">No meetings today or tomorrow.</p>`;
         return;
       }
       const now = new Date();
@@ -333,7 +340,7 @@
       for (const ev of events) {
         const s = new Date(ev.start), e = new Date(ev.end);
         const day = dayLabel(s);
-        if (day !== lastDay) { html += `<div class="day">${day}</div>`; lastDay = day; }
+        if (day !== lastDay) { if (day !== "Today" || lastDay) html += `<div class="day">${day}</div>`; lastDay = day; }
         const past = e < now;
         const live = s <= now && now < e;
         const mins = Math.round((e - s) / 60000);
@@ -355,13 +362,124 @@
     const b = $("#calRefresh");
     if (b.disabled) return;
     b.disabled = true;
-    b.textContent = "Refreshing...";
-    $("#agenda").style.opacity = "0.5";
-    await loadAgenda(true);
-    $("#agenda").style.opacity = "";
-    b.textContent = "Updated";
-    setTimeout(() => { b.textContent = "Refresh"; b.disabled = false; }, 1200);
+    b.classList.add("spin");
+    await Promise.all([loadAgenda(true), loadPlan(true)]);
+    b.classList.remove("spin");
+    b.disabled = false;
+    toast("Updated");
   });
+
+  // ------------------------------------------------------------ today's plan
+
+  let meetingsLeft = 0;
+  let planState = null;
+  const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
+
+  function updateTodaySub() {
+    const parts = [];
+    if (meetingsLeft) parts.push(`${meetingsLeft} meeting${meetingsLeft > 1 ? "s" : ""} left`);
+    if (planState && planState.tasks) {
+      const live = planState.tasks.filter((t) => t.included);
+      const left = live.filter((t) => !t.done).length;
+      if (planState.status === "approved") parts.push(left ? `${left} of ${live.length} tasks to go` : "all tasks done");
+      if (planState.status === "proposed") parts.push(`${live.length} tasks proposed`);
+    }
+    $("#todaySub").textContent = parts.join(" · ") || "A clear day";
+  }
+
+  function timeRange(t) {
+    if (!t.start) return "";
+    return hm(new Date(t.start));
+  }
+
+  function taskRow(t, mode, n) {
+    const kind = t.kind ? `<span class="kind ${esc(t.kind)}">${esc(t.kind.replace("-", " "))}</span>` : "";
+    const src = t.source ? `<span>${esc(t.source)}</span>` : "";
+    if (mode === "proposed") {
+      return `<div class="task${t.included ? "" : " off"}">
+        <div class="num">${n}</div>
+        <div class="body"><div class="t">${esc(t.title)}</div>
+          ${t.why ? `<div class="why">${esc(t.why)}</div>` : ""}
+          <div class="m">${kind}${src}</div></div>
+        <button class="switch${t.included ? " on" : ""}" data-toggle="${esc(t.id)}" aria-label="Keep or drop"><i></i></button></div>`;
+    }
+    const slot = t.start ? `<span class="slot">${timeRange(t)}</span><span>${planState.blockMinutes} min</span>`
+      : t.unplaced ? `<span>No free slot today</span>` : "";
+    return `<div class="task${t.done ? " done" : ""}">
+      <button class="check${t.done ? " on" : ""}" data-done="${esc(t.id)}" aria-label="Done">${CHECK}</button>
+      <div class="body"><div class="t">${esc(t.title)}</div>
+        <div class="m">${slot}${kind}${src}</div></div></div>`;
+  }
+
+  function renderPlan() {
+    const box = $("#plan");
+    const p = planState;
+    if (!p) { box.innerHTML = ""; return; }
+    const head = (count) => `<div class="plan-head"><div class="label">Focus</div><div class="count">${count || ""}</div></div>`;
+    if (p.status === "not-configured") {
+      box.innerHTML = head() + `<p class="plan-empty">The daily list is not set up yet. See the plan section in config.json.</p>`;
+    } else if (p.status === "waiting") {
+      box.innerHTML = head() + `<p class="plan-empty">Today's list arrives by ${esc(p.readyBy)}.</p>`;
+    } else if (p.status === "none") {
+      box.innerHTML = head() + `<p class="plan-empty">No list arrived today${p.error ? `: ${esc(p.error)}` : "."}</p>`;
+    } else if (p.status === "dismissed") {
+      box.innerHTML = head() + `<div class="plan-foot"><p class="plan-empty">You set today's list aside.</p>
+        <button class="text-btn" data-plan="reopen">Show list</button></div>`;
+    } else if (p.status === "proposed") {
+      const keep = p.tasks.filter((t) => t.included).length;
+      box.innerHTML = `<div class="plan-head"><div class="label">Focus · proposed</div>
+          <div class="plan-actions"><button class="text-btn" data-plan="dismiss">Not today</button>
+          <button class="gold small" data-plan="approve"${keep ? "" : " disabled"}>Block ${keep} × ${p.blockMinutes} min</button></div></div>` +
+        (p.note ? `<p class="plan-note">${esc(p.note)}</p>` : "") +
+        `<div class="proposal">${p.tasks.map((t, i) => taskRow(t, "proposed", i + 1)).join("")}</div>`;
+    } else {
+      const live = p.tasks.filter((t) => t.included);
+      const done = live.filter((t) => t.done).length;
+      box.innerHTML = head(`${done} of ${live.length}`) +
+        `<div class="progress"><span style="width:${live.length ? (done / live.length) * 100 : 0}%"></span></div>` +
+        live.map((t) => taskRow(t, "approved")).join("") +
+        `<div class="plan-foot"><span></span><button class="text-btn" data-plan="reset">Change blocks</button></div>`;
+    }
+    updateTodaySub();
+  }
+
+  async function loadPlan(force) {
+    try {
+      planState = await api("/api/plan" + (force ? "?force=1" : ""));
+      renderPlan();
+    } catch (e) { /* keep the last list on screen */ }
+  }
+
+  async function planCall(path, body) {
+    try {
+      const r = await api(path, { body: body || {} });
+      planState = r;
+      renderPlan();
+      if (r.toast) toast(r.toast);
+      if (path.endsWith("approve") || path.endsWith("reset")) loadAgenda(true);
+    } catch (err) { toast(err.message, true); }
+  }
+
+  $("#plan").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-toggle],[data-done],[data-plan]");
+    if (!t || t.disabled) return;
+    if (t.dataset.toggle) return planCall("/api/plan/toggle", { id: t.dataset.toggle });
+    if (t.dataset.done) {
+      const task = planState.tasks.find((x) => x.id === t.dataset.done);
+      return planCall("/api/plan/done", { id: t.dataset.done, done: !(task && task.done) });
+    }
+    if (t.dataset.plan === "reset" && !confirmReset(t)) return;
+    planCall(`/api/plan/${t.dataset.plan}`);
+  });
+
+  // "Change blocks" asks once more before taking blocks off the calendar
+  function confirmReset(btn) {
+    if (btn.dataset.armed) return true;
+    btn.dataset.armed = "1";
+    btn.textContent = "Tap again to remove the blocks";
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Change blocks"; }, 3000);
+    return false;
+  }
 
   $("#agenda").addEventListener("click", async (e) => {
     const id = e.target.closest("[data-join]")?.dataset.join;
@@ -435,6 +553,129 @@
   $$("[data-builtin]").forEach((b) => b.addEventListener("click", async () => {
     try { renderMusic(await api("/api/music", { body: { cmd: b.dataset.builtin } })); } catch (e) { toast(e.message, true); }
   }));
+
+  // ------------------------------------------------------------ reading roundup
+
+  let roundupData = null;
+  let rdSection = "All";
+  const READ_ICON = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6h-2V7.4l-7.3 7.3-1.4-1.4L16.6 6H14zM5 6h6v2H6v10h10v-5h2v7H4V6z"/></svg>';
+  const MAC_ICON = '<svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1h-6v2h3v2H7v-2h3v-2H4a1 1 0 01-1-1V6a1 1 0 011-1zm1 2v8h14V7z"/></svg>';
+
+  function readKey() { return `deck_read_${roundupData && roundupData.date}`; }
+  function readSet() {
+    try { return new Set(JSON.parse(store.get(readKey()) || "[]")); } catch (e) { return new Set(); }
+  }
+  function markRead(id, on) {
+    const set = readSet();
+    on ? set.add(id) : set.delete(id);
+    store.set(readKey(), JSON.stringify([...set]));
+  }
+
+  function kindLabel(k) {
+    const x = (k || "").toLowerCase();
+    if (x.includes("podcast")) return "Podcast";
+    if (x.includes("video")) return "Video";
+    if (x.includes("blog")) return "Blog post";
+    return x ? "Article" : "";
+  }
+
+  function renderRoundup() {
+    const d = roundupData;
+    const list = $("#rdList");
+    if (!d || d.status !== "ok") {
+      $("#rdTitle").textContent = "Morning roundup";
+      $("#rdMeta").textContent = "";
+      $("#rdIntro").textContent = "";
+      $("#rdSeg").innerHTML = "";
+      const why = !d ? "Loading..."
+        : d.status === "not-configured" ? "Add a token in the plan section of config.json to read the roundup here."
+        : d.status === "error" ? d.error
+        : "No roundup yet today. It usually lands by 6 AM.";
+      list.innerHTML = `<p class="plan-empty">${esc(why)}</p>`;
+      return;
+    }
+    const all = d.sections.flatMap((sec) => sec.items.map((it) => ({ ...it, section: sec.name })));
+    const read = readSet();
+    $("#rdTitle").textContent = d.title;
+    $("#rdMeta").textContent = `${d.day === "yesterday" ? "Yesterday's roundup · " : ""}${all.filter((x) => read.has(x.id)).length} of ${all.length} read`;
+    $("#rdIntro").textContent = d.intro;
+    const names = ["All", ...d.sections.map((x) => x.name)];
+    if (!names.includes(rdSection)) rdSection = "All";
+    $("#rdSeg").innerHTML = names.map((n) => {
+      const count = n === "All" ? all.length : all.filter((x) => x.section === n).length;
+      return `<button data-sec="${esc(n)}" class="${n === rdSection ? "on" : ""}">${esc(n)} <span>${count}</span></button>`;
+    }).join("");
+    const shown = all.filter((x) => rdSection === "All" || x.section === rdSection);
+    list.innerHTML = shown.map((it) => `
+      <article class="story${read.has(it.id) ? " read" : ""}" data-id="${esc(it.id)}">
+        <div class="story-top"><span class="sec">${esc(it.section)}</span>${kindLabel(it.kind) ? `<span class="kind">${kindLabel(it.kind)}</span>` : ""}</div>
+        <h3>${esc(it.title)}</h3>
+        <p class="sum">${esc(it.summary)}</p>
+        <button class="more" data-more="1">More</button>
+        ${it.idea ? `<p class="idea"><b>Post idea</b> ${esc(it.idea)}</p>` : ""}
+        <div class="story-foot">
+          <div class="src">${esc([it.publisher, it.when].filter(Boolean).join(" · "))}</div>
+          ${it.hasLink ? `<a class="icon-btn" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open here" data-here="1">${READ_ICON}</a>
+          <button class="icon-btn" data-mac="${esc(it.id)}" aria-label="Open on Mac">${MAC_ICON}</button>` : ""}
+          <button class="check${read.has(it.id) ? " on" : ""}" data-read="${esc(it.id)}" aria-label="Mark read">${CHECK}</button>
+        </div>
+      </article>`).join("") || `<p class="plan-empty">Nothing in this section today.</p>`;
+    list.querySelectorAll(".story").forEach((el) => {
+      const sum = el.querySelector(".sum");
+      if (sum.scrollHeight <= sum.clientHeight + 2) el.querySelector(".more").hidden = true;
+    });
+  }
+
+  async function loadRoundup(force) {
+    try {
+      roundupData = await api("/api/roundup" + (force ? "?force=1" : ""));
+    } catch (e) {
+      roundupData = { status: "error", error: e.message };
+    }
+    renderRoundup();
+  }
+
+  $("#rdSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sec]");
+    if (!b) return;
+    rdSection = b.dataset.sec;
+    renderRoundup();
+    $(".pages").scrollTop = 0;
+  });
+
+  $("#rdList").addEventListener("click", async (e) => {
+    const story = e.target.closest(".story");
+    if (!story) return;
+    const id = story.dataset.id;
+    if (e.target.closest("[data-more]")) {
+      story.classList.toggle("open");
+      e.target.closest("[data-more]").textContent = story.classList.contains("open") ? "Less" : "More";
+      return;
+    }
+    if (e.target.closest("[data-read]")) {
+      markRead(id, !readSet().has(id));
+      return renderRoundup();
+    }
+    if (e.target.closest("[data-here]")) {
+      markRead(id, true);
+      setTimeout(renderRoundup, 300);
+      return;
+    }
+    if (e.target.closest("[data-mac]")) {
+      try {
+        toast((await api("/api/roundup/open", { body: { id } })).toast);
+        markRead(id, true);
+        renderRoundup();
+      } catch (err) { toast(err.message, true); }
+    }
+  });
+
+  $("#rdRefresh").addEventListener("click", async () => {
+    const b = $("#rdRefresh");
+    b.classList.add("spin");
+    await loadRoundup(true);
+    b.classList.remove("spin");
+  });
 
   // ------------------------------------------------------------ Claude
 
@@ -663,6 +904,7 @@
     store.set("deck_tab", name);
     if (name === "home") loadMusic();
     if (name === "capture") loadNotes();
+    if (name === "read" && (!roundupData || roundupData.status !== "ok" || roundupData.date !== localDate(new Date()))) loadRoundup();
     $(".pages").scrollTop = 0;
   }
   $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
@@ -683,6 +925,7 @@
     keepAwake();
     loadStatus();
     loadAgenda();
+    loadPlan();
     loadMusic();
   });
 
@@ -708,6 +951,7 @@
     setInterval(drawTimer, 1000); drawTimer();
     every(15000, loadStatus);
     every(30000, () => loadAgenda());
+    every(60000, () => loadPlan());
     every(3000, loadMusic);
     keepAwake();
   }

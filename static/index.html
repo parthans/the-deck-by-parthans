@@ -18,7 +18,7 @@
 <!-- PIN screen -->
 <section id="lock" class="lock" hidden>
   <div class="lock-inner">
-    <h1 class="serif">Deck</h1>
+    <h1>Deck</h1>
     <p class="muted">Enter the PIN you set on the Mac</p>
     <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="pinpad" id="pinpad"></div>
@@ -30,8 +30,8 @@
 
   <header class="top">
     <div class="clock">
-      <div class="time serif" id="clockTime">--:--</div>
-      <div class="date" id="clockDate"></div>
+      <div class="time" id="clockTime">--:--</div>
+      <div class="date"><span class="greet" id="greet"></span><span id="clockDate"></span></div>
     </div>
     <div class="top-right">
       <div class="mini-timer" id="miniTimer" hidden></div>
@@ -51,61 +51,83 @@
     <section class="page" data-page="home">
       <div class="home-grid">
         <div class="col-main">
-          <div class="block">
-            <h2 class="label">Apps</h2>
-            <div class="tiles" data-section="apps"></div>
+          <div class="block ws-block">
+            <div class="tiles pills" data-section="workspaces"></div>
           </div>
-          <div class="block">
-            <h2 class="label">Sites</h2>
-            <div class="tiles" data-section="sites"></div>
-          </div>
-          <div class="block">
-            <h2 class="label">Workspaces</h2>
-            <div class="tiles wide" data-section="workspaces"></div>
-          </div>
-          <div class="block">
-            <h2 class="label">On a call</h2>
-            <div class="tiles strip" data-section="call"></div>
+
+          <div class="card today">
+            <div class="card-head">
+              <div>
+                <h2>Today</h2>
+                <div class="sub" id="todaySub"></div>
+              </div>
+              <div class="head-btns">
+                <button class="icon-btn" id="calRefresh" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 016.6 4.7l1.9-.7A9 9 0 003.8 8.2V5H2v6h6V9H5a7 7 0 017-4zm7 10h-3v2h3.2A7 7 0 015.4 14.3l-1.9.7A9 9 0 0020.2 15.8V19H22v-6h-3z"/></svg></button>
+                <button class="icon-btn" id="addEventBtn" aria-label="New event"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
+              </div>
+            </div>
+            <div class="today-body">
+              <div id="agenda" class="agenda"><p class="muted">Loading...</p></div>
+              <div class="plan" id="plan"></div>
+            </div>
           </div>
         </div>
 
         <div class="col-side">
-          <div class="card agenda-card">
-            <div class="card-head">
-              <h2 class="serif">Calendar</h2>
-              <div class="head-btns">
-                <button class="ghost small" id="calRefresh">Refresh</button>
-                <button class="ghost small" id="addEventBtn">+ Event</button>
-              </div>
-            </div>
-            <div id="agenda" class="agenda"><p class="muted">Loading...</p></div>
-          </div>
-
           <div class="card music-card" id="musicCard">
             <div class="music">
-              <div class="art" id="art"><span class="serif">♪</span></div>
+              <div class="art" id="art"><span>♪</span></div>
               <div class="track">
                 <div class="track-name" id="trackName">Nothing playing</div>
-                <div class="track-artist muted" id="trackArtist">Apple Music</div>
+                <div class="track-artist" id="trackArtist">Apple Music</div>
                 <div class="bar"><span id="trackBar"></span></div>
               </div>
-            </div>
-            <div class="music-ctl">
+              <div class="music-ctl">
               <button class="round" data-builtin="music_prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
               <button class="round big" data-builtin="music_playpause" aria-label="Play or pause" id="playBtn"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
               <button class="round" data-builtin="music_next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
             </div>
           </div>
+            </div>
 
+
+          <div class="card cc-card block">
+            <div class="tiles strip cc" data-section="call"></div>
+          </div>
+
+          <div class="card launcher">
+            <div class="block">
+              <div class="label">Apps</div>
+              <div class="tiles dock" data-section="apps"></div>
+            </div>
+            <div class="block">
+              <div class="label">Sites</div>
+              <div class="tiles dock" data-section="sites"></div>
+            </div>
+          </div>
         </div>
       </div>
+    </section>
+
+    <!-- READ -->
+    <section class="page" data-page="read" hidden>
+      <div class="read-head">
+        <div>
+          <h1 class="read-title" id="rdTitle">Morning roundup</h1>
+          <div class="read-meta" id="rdMeta"></div>
+        </div>
+        <button class="icon-btn" id="rdRefresh" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 016.6 4.7l1.9-.7A9 9 0 003.8 8.2V5H2v6h6V9H5a7 7 0 017-4zm7 10h-3v2h3.2A7 7 0 015.4 14.3l-1.9.7A9 9 0 0020.2 15.8V19H22v-6h-3z"/></svg></button>
+      </div>
+      <p class="read-intro" id="rdIntro"></p>
+      <div class="seg read-seg" id="rdSeg"></div>
+      <div class="read-grid" id="rdList"><p class="muted">Loading...</p></div>
     </section>
 
     <!-- CAPTURE -->
     <section class="page" data-page="capture" hidden>
       <div class="capture-grid">
         <div class="card">
-          <div class="card-head"><h2 class="serif">Ask Claude</h2></div>
+          <div class="card-head"><h2>Ask Claude</h2></div>
           <textarea id="claudeText" rows="4" placeholder="Type or dictate here. It goes into a new chat in the Claude app on your Mac."></textarea>
           <div class="row">
             <button class="ghost" id="claudePaste">Paste in Claude</button>
@@ -114,11 +136,11 @@
         </div>
 
         <div class="card voice-card">
-          <div class="card-head"><h2 class="serif">Voice note</h2><span class="muted small" id="voiceHint"></span></div>
+          <div class="card-head"><h2>Voice note</h2><span class="muted small" id="voiceHint"></span></div>
           <div class="recorder">
             <button class="rec" id="recBtn" aria-label="Record"><span></span></button>
             <div>
-              <div class="rec-time serif" id="recTime">0:00</div>
+              <div class="rec-time" id="recTime">0:00</div>
               <div class="muted small" id="recState">Tap to record</div>
             </div>
           </div>
@@ -126,7 +148,7 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h2 class="serif">Clipboard</h2></div>
+          <div class="card-head"><h2>Clipboard</h2></div>
           <textarea id="clipText" rows="3" placeholder="Text here goes to the Mac clipboard. Paste it anywhere with Command V."></textarea>
           <div class="row">
             <button class="ghost" id="clipGet">Get from Mac</button>
@@ -136,7 +158,7 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h2 class="serif">Find on Mac</h2></div>
+          <div class="card-head"><h2>Find on Mac</h2></div>
           <input id="searchInput" type="search" placeholder="File or folder name" autocomplete="off" autocorrect="off" autocapitalize="off">
           <div class="results" id="results"></div>
         </div>
@@ -148,22 +170,22 @@
       <div class="controls-grid">
         <div class="col-main">
           <div class="block">
-            <h2 class="label">Focus</h2>
+            <div class="label">Focus</div>
             <div class="tiles wide" data-section="focus"></div>
           </div>
           <div class="block">
-            <h2 class="label">Mac</h2>
-            <div class="tiles" data-section="system"></div>
+            <div class="label">Mac</div>
+            <div class="tiles sys" data-section="system"></div>
           </div>
           <div class="block" id="shortcutsBlock">
-            <h2 class="label">My Shortcuts</h2>
+            <div class="label">My Shortcuts</div>
             <div class="tiles wide" data-section="shortcuts"></div>
           </div>
         </div>
         <div class="col-side">
           <div class="card timer-card">
-            <div class="card-head"><h2 class="serif">Timer</h2></div>
-            <div class="timer-face serif" id="timerFace">25:00</div>
+            <div class="card-head"><h2>Timer</h2></div>
+            <div class="timer-face" id="timerFace">25:00</div>
             <div class="row presets">
               <button class="ghost" data-min="15">15</button>
               <button class="ghost" data-min="25">25</button>
@@ -188,16 +210,19 @@
   </main>
 
   <nav class="tabs">
-    <button class="tab active" data-tab="home">Home</button>
-    <button class="tab" data-tab="capture">Capture</button>
-    <button class="tab" data-tab="controls">Controls</button>
+    <div class="tabs-pill">
+      <button class="tab active" data-tab="home"><svg viewBox="0 0 24 24"><path d="M12 3l9 7.5V21h-6v-6H9v6H3V10.5z"/></svg><span>Home</span></button>
+      <button class="tab" data-tab="read"><svg viewBox="0 0 24 24"><path d="M3 5.5C5.5 4.3 8.4 4.1 11 5.2v14c-2.6-1.1-5.5-.9-8 .3zm18 0v14c-2.5-1.2-5.4-1.4-8-.3v-14c2.6-1.1 5.5-.9 8 .3z"/></svg><span>Read</span></button>
+      <button class="tab" data-tab="capture"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM6 11h2a4 4 0 008 0h2a6 6 0 01-5 5.9V20h3v2H8v-2h3v-3.1A6 6 0 016 11z"/></svg><span>Capture</span></button>
+      <button class="tab" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M4 7h9.2a3 3 0 015.6 0H20v2h-1.2a3 3 0 01-5.6 0H4zm0 8h1.2a3 3 0 015.6 0H20v2h-9.2a3 3 0 01-5.6 0H4z"/></svg><span>Controls</span></button>
+    </div>
   </nav>
 </div>
 
 <!-- Add event sheet -->
 <div class="sheet" id="eventSheet" hidden>
   <form class="sheet-inner card" id="eventForm">
-    <h2 class="serif">New event</h2>
+    <h2>New event</h2>
     <input id="evTitle" placeholder="Title" required autocomplete="off">
     <div class="row">
       <input id="evDate" type="date" required>
@@ -219,6 +244,23 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script>
+  // If the panel's script fails, say so on screen instead of showing a blank page.
+  (function () {
+    function show(msg) {
+      var d = document.getElementById("deckError");
+      if (!d) {
+        d = document.createElement("pre");
+        d.id = "deckError";
+        d.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99;margin:0;padding:12px 16px;background:#F2F4F7;color:#111317;font:12px/1.4 Menlo,monospace;white-space:pre-wrap";
+        document.body.appendChild(d);
+      }
+      d.textContent += "Deck error: " + msg + "\n";
+    }
+    window.addEventListener("error", function (e) { show((e.message || "unknown") + " (" + (e.filename || "").split("/").pop() + ":" + (e.lineno || "") + ")"); });
+    window.addEventListener("unhandledrejection", function (e) { show("promise: " + (e.reason && e.reason.message || e.reason)); });
+  })();
+</script>
 <script src="/app.js"></script>
 </body>
 </html>

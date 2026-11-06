@@ -131,7 +131,11 @@ if command == "list" {
             "calendar": ev.calendar.title,
             "account": ev.calendar.source.title,
             "location": (ev.location ?? "").components(separatedBy: .newlines).first ?? "",
+            "eid": ev.eventIdentifier ?? "",
         ]
+        if let notes = ev.notes, let r = notes.range(of: #"Deck task ([A-Za-z0-9_-]+)"#, options: .regularExpression) {
+            item["deckTask"] = String(notes[r]).replacingOccurrences(of: "Deck task ", with: "")
+        }
         if let link = joinLink(ev) { item["joinUrl"] = link }
         out.append(item)
     }
@@ -150,6 +154,7 @@ if command == "add" {
     ev.title = title
     ev.startDate = s
     ev.endDate = e
+    if let notes = arg("--notes"), !notes.isEmpty { ev.notes = notes }
     let writable = calendarsInScope().filter { $0.allowsContentModifications }
     if let name = arg("--calendar"), !name.isEmpty {
         guard let target = writable.first(where: { $0.title == name }) else {
@@ -165,10 +170,42 @@ if command == "add" {
     }
     do {
         try store.save(ev, span: .thisEvent, commit: true)
-        print("{\"ok\":true}")
+        let out = try! JSONSerialization.data(withJSONObject: ["ok": true, "eid": ev.eventIdentifier ?? ""])
+        FileHandle.standardOutput.write(out)
         exit(0)
     } catch {
         fail("Could not save: \(error.localizedDescription)")
+    }
+}
+
+if command == "rename" {
+    guard let eid = arg("--eid"), let title = arg("--title"),
+          let ev = store.event(withIdentifier: eid) else {
+        fail("rename needs --eid of an existing event and --title")
+    }
+    ev.title = title
+    do {
+        try store.save(ev, span: .thisEvent, commit: true)
+        print("{\"ok\":true}")
+        exit(0)
+    } catch {
+        fail("Could not rename: \(error.localizedDescription)")
+    }
+}
+
+if command == "remove" {
+    guard let eid = arg("--eid"), let ev = store.event(withIdentifier: eid) else {
+        fail("remove needs --eid of an existing event")
+    }
+    guard (ev.notes ?? "").contains("Deck task ") else {
+        fail("Deck only removes events it created")
+    }
+    do {
+        try store.remove(ev, span: .thisEvent, commit: true)
+        print("{\"ok\":true}")
+        exit(0)
+    } catch {
+        fail("Could not remove: \(error.localizedDescription)")
     }
 }
 

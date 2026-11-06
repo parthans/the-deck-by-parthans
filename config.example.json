@@ -1,5 +1,6 @@
 {
   "name": "Deck",
+  "owner": "",
   "pin": "",
   "port": 8443,
   "setup_port": 8080,
@@ -10,6 +11,26 @@
     "days": 2,
     "only_calendars": [],
     "add_to_calendar": ""
+  },
+
+  "plan": {
+    "repo": "",
+    "path": "_plan/{date}.json",
+    "branch": "main",
+    "token": "",
+    "ready_by": "07:00",
+    "day_start": "09:30",
+    "day_end": "18:00",
+    "lunch": ["13:00", "14:00"],
+    "block_minutes": 45,
+    "buffer_minutes": 10,
+    "gap_minutes": 15
+  },
+
+  "roundup": {
+    "repo": "",
+    "path": "_roundup/{date}.md",
+    "branch": "main"
   },
 
   "voice": {
