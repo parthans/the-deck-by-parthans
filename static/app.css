@@ -114,13 +114,13 @@ svg { display: block; }
 .head-btns { display: flex; gap: 8px; }
 .icon-btn {
   width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--fill-2); color: var(--text);
-  display: grid; place-items: center;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 !important; flex: none; line-height: 0;
 }
-.icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+.icon-btn svg { width: 18px; height: 18px; fill: currentColor; display: block; flex: none; }
 .icon-btn:active { background: rgba(236, 238, 242, 0.2); }
 .icon-btn.spin svg { animation: spin 0.8s linear infinite; }
 
-button { font-family: var(--sans); cursor: pointer; }
+button { font-family: var(--sans); cursor: pointer; -webkit-appearance: none; appearance: none; margin: 0; padding: 1px 6px; }
 .ghost, .gold {
   border-radius: 999px; font: 600 14px var(--sans); padding: 10px 18px; min-height: 42px; border: 0;
 }
@@ -211,7 +211,7 @@ textarea:focus, input:focus { border-color: rgba(91, 157, 255, 0.6); }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 92px;
   background: var(--material); border: 1px solid var(--hairline); border-radius: var(--r-lg); font-size: 12.5px;
 }
-.tiles.sys .mono { width: 42px; height: 42px; border-radius: 50%; background: var(--fill-2); border: 0; }
+.tiles.sys .mono { width: 42px; height: 42px; border-radius: 50%; background: var(--fill-2); border: 0; padding: 0; }
 .tiles.sys .tile.alert { background: var(--gold); color: var(--green-900); }
 .tiles.sys .tile.alert .mono { background: rgba(17, 19, 23, 0.15); }
 .tiles.sys .tile.alert .glyph { color: var(--green-900); }
@@ -250,7 +250,7 @@ textarea:focus, input:focus { border-color: rgba(91, 157, 255, 0.6); }
   flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--gold);
   background: transparent; display: grid; place-items: center; padding: 0;
 }
-.check svg { width: 14px; height: 14px; fill: none; stroke: var(--green-900); stroke-width: 3; opacity: 0; }
+.check svg { display: block; width: 14px; height: 14px; fill: none; stroke: var(--green-900); stroke-width: 3; opacity: 0; }
 .check.on { background: var(--gold); }
 .check.on svg { opacity: 1; }
 .check.include { border-color: rgba(236, 238, 242, 0.35); }
@@ -285,8 +285,8 @@ textarea:focus, input:focus { border-color: rgba(91, 157, 255, 0.6); }
 .bar { height: 4px; border-radius: 4px; background: var(--fill-2); margin-top: 9px; overflow: hidden; }
 .bar span { display: block; height: 100%; width: 0; background: var(--text); transition: width 1s linear; }
 .music-ctl { display: flex; justify-content: center; align-items: center; gap: 22px; margin-top: 8px; }
-.round { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--text); display: grid; place-items: center; }
-.round svg { width: 24px; height: 24px; fill: currentColor; }
+.round { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; line-height: 0; }
+.round svg { width: 24px; height: 24px; fill: currentColor; display: block; flex: none; }
 .round.big { width: 48px; height: 48px; background: var(--text); color: var(--green-900); }
 .round.big svg { width: 22px; height: 22px; }
 .round:active { transform: scale(0.92); }
@@ -297,8 +297,8 @@ textarea:focus, input:focus { border-color: rgba(91, 157, 255, 0.6); }
 /* ------------------------------------------------ capture */
 .voice-card .card-head { margin-bottom: 6px; }
 .recorder { display: flex; gap: 16px; align-items: center; margin-bottom: 8px; }
-.rec { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--text); background: transparent; display: grid; place-items: center; flex: none; }
-.rec span { width: 46px; height: 46px; border-radius: 50%; background: #E0574F; transition: all 0.15s; }
+.rec { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--text); background: transparent; display: flex; align-items: center; justify-content: center; flex: none; padding: 0; line-height: 0; }
+.rec span { display: block; flex: none; width: 46px; height: 46px; border-radius: 50%; background: #E0574F; transition: all 0.15s; }
 .rec.on span { width: 24px; height: 24px; border-radius: 6px; }
 .rec.on { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(224, 87, 79, 0.18); } }
